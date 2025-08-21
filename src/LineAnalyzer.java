@@ -2,22 +2,28 @@ import java.util.List;
 
 // Класс, отвечающий за анализ списка строк
 public class LineAnalyzer {
+    private final LogLineParser logLineParser;
+    private final BotStatistics botStatistics;
+
+    public LineAnalyzer() {
+        this.logLineParser = new LogLineParser();
+        this.botStatistics = new BotStatistics();
+    }
+
+    // Получает список строк
     public FileAnalysisResult analyze(String fileName, List<String> lines) {
-        int totalLines = lines.size();
-        int maxLength = 0;
-        int minLength = Integer.MAX_VALUE;
-
+        // Для каждой строки использует BotStatistics + LogLineParser
         for (String line : lines) {
-            int length = line.length();
-            maxLength = Math.max(maxLength, length);
-            minLength = Math.min(minLength, length);
+            botStatistics.processLine(line, logLineParser);
         }
-
-        // Обработка случая пустого файла
-        if (totalLines == 0) {
-            minLength = 0;
-        }
-
-        return new FileAnalysisResult(fileName, totalLines, maxLength, minLength);
+        // Создает объект FileAnalysisResult
+        return new FileAnalysisResult(
+                fileName,
+                botStatistics.getTotalLines(),
+                botStatistics.getGooglebotCount(),
+                botStatistics.getYandexbotCount(),
+                botStatistics.getGooglebotPercentage(),
+                botStatistics.getYandexbotPercentage()
+        );
     }
 }
