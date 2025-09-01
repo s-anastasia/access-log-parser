@@ -6,18 +6,17 @@ import java.util.Scanner;
 // Основной класс приложения
 public class MainApplication {
 
-    private final InputHandler inputHandler; // Обработчик пользовательского ввода путей к файлам
-    private final FileValidator fileValidator; // Валидатор путей к файлам
-    private final FileContentReader fileContentReader; // Чтение файлов, проверка на максимально допустимую длину строки
-    private final LineAnalyzer lineAnalyzer; // Анализатор содержимого файлов
-    private int processedFilesCount; // Счетчик обработанных файлов
+    private final FileInputService fileInputService; // Ввод и валидация пути к файлу
+    private final FileContentReader fileContentReader; // Построчное чтение файла
+    private final Statistics statistics; // Анализ и подсчет статистики содержимого файла
+    private int processedFilesCount; // Счетчик файлов
 
-    public MainApplication(InputHandler inputHandler, FileValidator fileValidator,
-                           FileContentReader fileContentReader, LineAnalyzer lineAnalyzer)  {
-        this.inputHandler = inputHandler;
-        this.fileValidator = fileValidator;
+    public MainApplication(FileInputService fileInputService,
+                           FileContentReader fileContentReader,
+                           Statistics statistics) {
+        this.fileInputService = fileInputService;
         this.fileContentReader = fileContentReader;
-        this.lineAnalyzer = lineAnalyzer;
+        this.statistics = statistics;
         this.processedFilesCount = 0;
     }
 
@@ -25,41 +24,37 @@ public class MainApplication {
     public void start() {
         try {
             while (true) {
-                // 1. Получаем путь к файлу через inputHandler
-                String path = inputHandler.getFilePath();
-                // 2. Проверяем, не хочет ли пользователь выйти (команда "exit")
-                if (inputHandler.shouldExit(path)) break;
-                // 3. Создаем объект File
-                File file = new File(path);
-                // 4. Валидируем путь к файлу
-                if (!fileValidator.isValid(file)) continue;
-                // 5. Обрабатываем файл, если путь к нему валиден
+                // Получаем валидный файл или команду выхода через класс FileInputService
+                File file = fileInputService.getValidFileOrExit();
+                if (file == null) break;
+                // Обрабатываем один валидный файл
                 processFile(file);
+                // Сбрасываем статистику для следующего файла
+                statistics.reset();
             }
         } finally {
-            // 6. Выводим статистику по числу обработанных файлов при завершении программы
+            // При выходе выводим сообщение
             System.out.printf("%nПрограмма завершена. Всего обработано файлов: %d%n", processedFilesCount);
         }
     }
 
     // Метод обработки одного файла
     private void processFile(File file) {
-        // 1. Увеличиваем и выводим Счетчик обработанных файлов
+        // Увеличиваем и выводим Счетчик файлов
         processedFilesCount++;
         System.out.printf("%nПуть указан верно%nЭто файл номер %d%n", processedFilesCount);
-        // 2. Анализируем содержимое файла и выбрасываем исключения, в случае ошибок
         try {
-            // Читаем строки из файла через класс fileContentReader
+            // Читаем построчно файл через класс fileContentReader
             List<String> lines = fileContentReader.readLines(file);
-            // Анализируем строки через класс lineAnalyzer
-            FileAnalysisResult result = lineAnalyzer.analyze(file.getName(), lines);
+            // Анализируем строки через класс LogAnalyzerService
+            FileAnalysisResult result = statistics.analyzeFile(file.getName(), lines);
             // Выводим результаты через класс FileAnalysisResult
             result.printResults();
             // Обрабатываем возможные исключения
         } catch (LongLineException e) { // Пользовательский класс исключения для случая превышения макс допустимой длины строки
-            System.out.println(e.getMessage());
+            System.out.println("❌ " + e.getMessage());
         } catch (IOException e) {
-            System.out.println("Ошибка при обработке файла: " + e.getMessage());
+            System.out.println("❌ Ошибка при обработке файла: " + e.getMessage());
         }
     }
 
@@ -69,10 +64,9 @@ public class MainApplication {
         try (Scanner scanner = new Scanner(System.in)) {
             // Инициализируем все компоненты
             MainApplication app = new MainApplication(
-                    new InputHandler(scanner),
-                    new FileValidator(),
+                    new FileInputService(scanner),
                     new FileContentReader(),
-                    new LineAnalyzer()
+                    new Statistics()
             );
             // Запускаем программу
             app.start();

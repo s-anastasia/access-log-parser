@@ -7,6 +7,7 @@ import java.util.List;
 
 // Класс, отвечающий за чтение файл построчно + за выброс исключения при превышении макс доп длины строки
 public class FileContentReader {
+
     private static final int MAX_LINE_LENGTH = 1024;
 
     // Метод, читающий файл построчно через BufferedReader
