@@ -1,6 +1,6 @@
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.*;
 
 // Класс, отвечающий за накопление и расчет статистических данных
 public class Statistics {
@@ -11,6 +11,10 @@ public class Statistics {
     private int totalEntries; // Общее количество обработанных запросов
     private int googlebotCount; // Количество запросов от Googlebot
     private int yandexbotCount; // Количество запросов от YandexBot
+
+    // Новые поля для дополнительной статистики
+    private Set<String> existingPages; // Множество существующих страниц (код 200)
+    private Map<String, Integer> osCounts; // Количество операционных систем
 
     // Вызов метода reset для инициализации поле
     public Statistics() {
@@ -75,6 +79,15 @@ public class Statistics {
         } else if (userAgent.contains("yandexbot")) {
             yandexbotCount++;
         }
+
+        // Добавляем существующую страницу (код ответа 200)
+        if (entry.getResponseCode() == 200) {
+            existingPages.add(entry.getPath());
+        }
+
+        // Обновляем статистику операционных систем
+        String osType = entry.getAgent().getOsType();
+        osCounts.put(osType, osCounts.getOrDefault(osType, 0) + 1);
     }
 
     // Метод расчета средней скорости трафика в байтах/час
@@ -104,6 +117,35 @@ public class Statistics {
         yandexbotCount = 0;
         minTime = null;
         maxTime = null;
+        existingPages = new HashSet<>();
+        osCounts = new HashMap<>();
+    }
+
+    // Новый метод: возвращает список всех существующих страниц сайта (код 200)
+    public Set<String> getExistingPages() {
+        return new HashSet<>(existingPages); // Возвращаем копию для безопасности
+    }
+
+    // Новый метод: возвращает статистику операционных систем (доли от 0 до 1)
+    public Map<String, Double> getOsStatistics() {
+        Map<String, Double> osStatistics = new HashMap<>();
+
+        if (totalEntries == 0) {
+            return osStatistics; // Пустая карта, если нет записей
+        }
+
+        // Рассчитываем долю для каждой операционной системы
+        for (Map.Entry<String, Integer> entry : osCounts.entrySet()) {
+            double percentage = (double) entry.getValue() / totalEntries;
+            osStatistics.put(entry.getKey(), percentage);
+        }
+
+        return osStatistics;
+    }
+
+    // Дополнительный метод: возвращает сырые счетчики операционных систем
+    public Map<String, Integer> getOsCounts() {
+        return new HashMap<>(osCounts); // Возвращаем копию для безопасности
     }
 
     // Геттеры

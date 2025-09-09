@@ -1,3 +1,6 @@
+import java.util.Map;
+import java.util.Set;
+
 public class FileAnalysisResult {
     private final String fileName;
     private final int totalLines;
@@ -7,6 +10,7 @@ public class FileAnalysisResult {
     private final double yandexbotPercentage;
     private final double averageTrafficPerHour;
     private final long totalTraffic;
+    private final Statistics statistics;
 
     public FileAnalysisResult(String fileName, Statistics stats) {
         this.fileName = fileName;
@@ -17,6 +21,7 @@ public class FileAnalysisResult {
         this.yandexbotPercentage = stats.getYandexbotPercentage();
         this.averageTrafficPerHour = stats.getTrafficRate();
         this.totalTraffic = stats.getTotalTraffic();
+        this.statistics = stats;
     }
 
     public void printResults() {
@@ -29,6 +34,20 @@ public class FileAnalysisResult {
         System.out.println("4. Общий объем трафика: " + formatBytes(totalTraffic));
         System.out.printf("5. Средний объём трафика за час: %s/час%n",
                 formatBytes(averageTrafficPerHour));
+
+        // Статистика существующих страниц (только количество)
+        Set<String> existingPages = statistics.getExistingPages();
+        System.out.println("6. Количество существующих страниц (код 200): " + existingPages.size());
+
+        // Статистика операционных систем
+        Map<String, Double> osStats = statistics.getOsStatistics();
+        System.out.println("7. Статистика операционных систем:");
+        if (!osStats.isEmpty()) {
+            osStats.forEach((os, percentage) ->
+                    System.out.printf("   - %s: %.2f%%%n", os, percentage * 100));
+        } else {
+            System.out.println("   Нет данных об операционных системах");
+        }
 
         if (totalLines == 0) {
             System.out.println("⚠️  Файл не содержит валидных лог-записей");
