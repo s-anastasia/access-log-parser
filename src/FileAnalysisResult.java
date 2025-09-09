@@ -34,12 +34,10 @@ public class FileAnalysisResult {
         System.out.println("4. Общий объем трафика: " + formatBytes(totalTraffic));
         System.out.printf("5. Средний объём трафика за час: %s/час%n",
                 formatBytes(averageTrafficPerHour));
-
-        // Статистика существующих страниц (только количество)
         Set<String> existingPages = statistics.getExistingPages();
         System.out.println("6. Количество существующих страниц (код 200): " + existingPages.size());
-
-        // Статистика операционных систем
+        System.out.println("7. Количество несуществующих страниц (код 404): " +
+                statistics.getNotFoundPagesCount());
         Map<String, Double> osStats = statistics.getOsStatistics();
         System.out.println("7. Статистика операционных систем:");
         if (!osStats.isEmpty()) {
@@ -47,6 +45,18 @@ public class FileAnalysisResult {
                     System.out.printf("   - %s: %.2f%%%n", os, percentage * 100));
         } else {
             System.out.println("   Нет данных об операционных системах");
+        }
+
+        if (totalLines == 0) {
+            System.out.println("⚠️  Файл не содержит валидных лог-записей");
+        }
+        Map<String, Double> browserStats = statistics.getBrowserStatistics();
+        System.out.println("9. Статистика браузеров:");
+        if (!browserStats.isEmpty()) {
+            browserStats.forEach((browser, percentage) ->
+                    System.out.printf("   - %s: %.2f%%%n", browser, percentage * 100));
+        } else {
+            System.out.println("   Нет данных о браузерах");
         }
 
         if (totalLines == 0) {
@@ -66,6 +76,7 @@ public class FileAnalysisResult {
         }
     }
 
+    // Геттеры
     public String getFileName() { return fileName; }
     public int getTotalLines() { return totalLines; }
     public int getGooglebotCount() { return googlebotCount; }
@@ -73,5 +84,9 @@ public class FileAnalysisResult {
     public double getGooglebotPercentage() { return googlebotPercentage; }
     public double getYandexbotPercentage() { return yandexbotPercentage; }
     public double getAverageTrafficPerHour() { return averageTrafficPerHour; }
-    public long getTotalTraffic() { return totalTraffic; } // изменено с int на long
+    public long getTotalTraffic() { return totalTraffic; }
+    public Statistics getStatistics() { return statistics; }
+    public Set<String> getExistingPages() { return statistics.getExistingPages(); }
+    public Set<String> getNotFoundPages() { return statistics.getNotFoundPages(); }
+    public Map<String, Double> getBrowserStatistics() { return statistics.getBrowserStatistics(); }
 }
