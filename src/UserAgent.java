@@ -38,11 +38,27 @@ public class UserAgent {
         else return "Other";
     }
 
+    // Метод, определяющий является ли User-Agent ботом
+    public boolean isBot() {
+        if (originalString.isEmpty()) return false;
+
+        String ua = originalString.toLowerCase();
+        return ua.contains("bot") ||
+                ua.contains("googlebot") ||
+                ua.contains("yandexbot") ||
+                ua.contains("crawler") ||
+                ua.contains("spider") ||
+                ua.contains("crawler") ||
+                ua.contains("indexer") ||
+                ua.contains("scraper");
+    }
+
     // Возвращение оригинальной строки User-Agent
     @Override
     public String toString() {
         return originalString;
     }
+
     // Геттеры
     public String getOsType() { return osType; }
     public String getBrowserType() { return browserType; }

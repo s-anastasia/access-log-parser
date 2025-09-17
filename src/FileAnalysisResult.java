@@ -34,12 +34,21 @@ public class FileAnalysisResult {
         System.out.println("4. Общий объем трафика: " + formatBytes(totalTraffic));
         System.out.printf("5. Средний объём трафика за час: %s/час%n",
                 formatBytes(averageTrafficPerHour));
-        Set<String> existingPages = statistics.getExistingPages();
-        System.out.println("6. Количество существующих страниц (код 200): " + existingPages.size());
-        System.out.println("7. Количество несуществующих страниц (код 404): " +
-                statistics.getNotFoundPagesCount());
+        // Статистика посещаемости
+        System.out.printf("6. Среднее количество посещений в час: %.2f/час%n",
+                statistics.getAverageVisitsPerHour());
+        System.out.printf("7. Среднее количество ошибочных запросов в час: %.2f/час%n",
+                statistics.getAverageErrorRequestsPerHour());
+        System.out.printf("8. Средняя посещаемость одним пользователем: %.2f посещений/пользователь%n",
+                statistics.getAverageVisitsPerUser());
+        System.out.println("9. Количество реальных пользователей: " + statistics.getUniqueHumanUsers());
+        System.out.println("10. Количество ошибочных запросов: " + statistics.getErrorRequests());
+        System.out.println("11. Количество существующих страниц: " + statistics.getExistingPages().size());
+        System.out.println("12. Количество несуществующих страниц: " + statistics.getNotFoundPages().size());
+
+        // Статистика операционных систем
         Map<String, Double> osStats = statistics.getOsStatistics();
-        System.out.println("7. Статистика операционных систем:");
+        System.out.println("13. Статистика операционных систем:");
         if (!osStats.isEmpty()) {
             osStats.forEach((os, percentage) ->
                     System.out.printf("   - %s: %.2f%%%n", os, percentage * 100));
@@ -47,11 +56,9 @@ public class FileAnalysisResult {
             System.out.println("   Нет данных об операционных системах");
         }
 
-        if (totalLines == 0) {
-            System.out.println("⚠️  Файл не содержит валидных лог-записей");
-        }
+        // Статистика браузеров
         Map<String, Double> browserStats = statistics.getBrowserStatistics();
-        System.out.println("9. Статистика браузеров:");
+        System.out.println("14. Статистика браузеров:");
         if (!browserStats.isEmpty()) {
             browserStats.forEach((browser, percentage) ->
                     System.out.printf("   - %s: %.2f%%%n", browser, percentage * 100));
