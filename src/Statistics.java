@@ -1,3 +1,4 @@
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -5,28 +6,51 @@ import java.util.*;
 // Класс, отвечающий за накопление и расчет статистических данных
 public class Statistics {
 
+    // ========== ПОЛЯ ДЛЯ СТАТИСТИКИ ==========
+
+    // Основная статистика
     private long totalTraffic; // Общий объем трафика в байтах
     private LocalDateTime minTime; // Самое раннее время запроса
     private LocalDateTime maxTime; // Самое позднее время запроса
     private int totalEntries; // Общее количество обработанных запросов
+
+    // Статистика ботов
     private int googlebotCount; // Количество запросов от Googlebot
     private int yandexbotCount; // Количество запросов от YandexBot
-    // Статистические поля
+
+    // Статистика страниц
     private Set<String> existingPages; // Множество существующих страниц (код 200)
-    private Map<String, Integer> osCounts; // Количество операционных систем
     private Set<String> notFoundPages; // Множество несуществующих страниц (код 404)
+
+    // Статистика пользовательских агентов
+    private Map<String, Integer> osCounts; // Количество операционных систем
     private Map<String, Integer> browserCounts; // Количество браузеров
-    // Новые поля для дополнительной статистики
+
+    // Дополнительная статистика
     private int humanVisits; // Количество посещений реальными пользователями (не ботами)
     private int errorRequests; // Количество ошибочных запросов (4xx и 5xx)
     private Set<String> uniqueHumanIPs; // Уникальные IP-адреса реальных пользователей
+    private Map<Long, Integer> visitsPerSecond; // Количество посещений в каждую секунду
+    private Set<String> refererDomains; // Домены рефереров
+    private Map<String, Integer> visitsPerUser; // Количество посещений на пользователя
 
-    // Вызов метода reset для инициализации поле
+    // ========== КОНСТРУКТОР ==========
+
+    /**
+     * Конструктор класса Statistics, инициализирует все поля
+     */
     public Statistics() {
         reset();
     }
 
- // Основной метод анализа
+    // ========== ОСНОВНЫЕ МЕТОДЫ АНАЛИЗА ==========
+
+    /**
+     * Анализирует файл логов и обрабатывает каждую строку
+     * @param fileName имя файла для анализа
+     * @param lines список строк лога
+     * @return результат анализа файла
+     */
     public FileAnalysisResult analyzeFile(String fileName, List<String> lines) {
         System.out.println("🔍 Анализируем файл...");
 
@@ -52,19 +76,48 @@ public class Statistics {
         return new FileAnalysisResult(fileName, this);
     }
 
-    //Метод, добавляющий одну запись в статистику (один объект класса LogEntry)
+    /**
+     * Добавляет одну запись лога в статистику
+     * @param entry объект LogEntry для добавления
+     */
     public void addEntry(LogEntry entry) {
         // Валидируем размер данных перед добавлением
-        long dataSize = entry.getResponseSize(); // изменено с int на long
+        long dataSize = entry.getResponseSize();
         if (dataSize < 0) {
             System.out.println("⚠️  Пропускаем запись с отрицательным размером данных: " + dataSize);
             return;
         }
-     // Обновление счетчиков
+
+        // Обновление счетчиков
         totalEntries++;
         totalTraffic += dataSize;
-     // Обновление временного диапазона
-        LocalDateTime entryTime = entry.getTime();
+
+        // Обновление временного диапазона
+        updateTimeRange(entry.getTime());
+
+        // Анализ User-Agent
+        analyzeUserAgent(entry);
+
+        // Анализ страниц
+        analyzePages(entry);
+
+        // Анализ ошибок
+        analyzeErrors(entry);
+
+        // Анализ пользователей
+        analyzeUsers(entry);
+
+        // Анализ рефереров
+        analyzeReferers(entry);
+    }
+
+    // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА ==========
+
+    /**
+     * Обновляет временной диапазон статистики
+     * @param entryTime время текущей записи
+     */
+    private void updateTimeRange(LocalDateTime entryTime) {
         if (minTime == null) {
             minTime = entryTime;
             maxTime = entryTime;
@@ -76,18 +129,38 @@ public class Statistics {
                 maxTime = entryTime;
             }
         }
+    }
 
-        // Проверяем, является ли запрос от бота (используем метод из UserAgent)
+    /**
+     * Анализирует User-Agent запроса
+     * @param entry запись лога для анализа
+     */
+    private void analyzeUserAgent(LogEntry entry) {
+        // Проверяем, является ли запрос от бота
         boolean isBot = entry.getAgent().isBot();
-
-        // Анализ User-Agent для обнаружения ботов (регистронезависимый поиск)
         String userAgent = entry.getAgent().toString().toLowerCase();
+
+        // Подсчет ботов
         if (userAgent.contains("googlebot")) {
             googlebotCount++;
         } else if (userAgent.contains("yandexbot")) {
             yandexbotCount++;
         }
 
+        // Статистика ОС
+        String osType = entry.getAgent().getOsType();
+        osCounts.put(osType, osCounts.getOrDefault(osType, 0) + 1);
+
+        // Статистика браузеров
+        String browserType = entry.getAgent().getBrowserType();
+        browserCounts.put(browserType, browserCounts.getOrDefault(browserType, 0) + 1);
+    }
+
+    /**
+     * Анализирует страницы и коды ответов
+     * @param entry запись лога для анализа
+     */
+    private void analyzePages(LogEntry entry) {
         // Добавляем существующую страницу (код ответа 200)
         if (entry.getResponseCode() == 200) {
             existingPages.add(entry.getPath());
@@ -97,47 +170,82 @@ public class Statistics {
         if (entry.getResponseCode() == 404) {
             notFoundPages.add(entry.getPath());
         }
+    }
 
+    /**
+     * Анализирует ошибочные запросы
+     * @param entry запись лога для анализа
+     */
+    private void analyzeErrors(LogEntry entry) {
         // Подсчет ошибочных запросов (4xx и 5xx)
         if (entry.getResponseCode() >= 400 && entry.getResponseCode() < 600) {
             errorRequests++;
         }
+    }
 
-        // Обновляем статистику операционных систем
-        String osType = entry.getAgent().getOsType();
-        osCounts.put(osType, osCounts.getOrDefault(osType, 0) + 1);
-
-        // Обновляем статистику браузеров
-        String browserType = entry.getAgent().getBrowserType();
-        browserCounts.put(browserType, browserCounts.getOrDefault(browserType, 0) + 1);
+    /**
+     * Анализирует пользовательские посещения
+     * @param entry запись лога для анализа
+     */
+    private void analyzeUsers(LogEntry entry) {
+        boolean isBot = entry.getAgent().isBot();
 
         // Подсчет посещений реальными пользователями и уникальных IP
         if (!isBot) {
             humanVisits++;
             uniqueHumanIPs.add(entry.getIpAddr());
+
+            // Пиковая посещаемость в секунду
+            long secondTimestamp = entry.getTime().toEpochSecond(java.time.ZoneOffset.UTC);
+            visitsPerSecond.put(secondTimestamp, visitsPerSecond.getOrDefault(secondTimestamp, 0) + 1);
+
+            // Статистика по пользователям
+            String ip = entry.getIpAddr();
+            visitsPerUser.put(ip, visitsPerUser.getOrDefault(ip, 0) + 1);
         }
     }
 
-    // Метод расчета средней скорости трафика в байтах/час
+    /**
+     * Анализирует рефереры
+     * @param entry запись лога для анализа
+     */
+    private void analyzeReferers(LogEntry entry) {
+        // Сбор доменов рефереров
+        if (entry.getReferer() != null && !entry.getReferer().isEmpty() && !"-".equals(entry.getReferer())) {
+            try {
+                URI uri = new URI(entry.getReferer());
+                String domain = uri.getHost();
+                if (domain != null && !domain.isEmpty()) {
+                    refererDomains.add(domain);
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️  Неверный формат referer: " + entry.getReferer());
+            }
+        }
+    }
+
+    // ========== МЕТОДЫ РАСЧЕТА СТАТИСТИКИ ==========
+
+    /**
+     * Рассчитывает среднюю скорость трафика в байтах/час
+     * @return средняя скорость трафика
+     */
     public double getTrafficRate() {
         if (minTime == null || maxTime == null || totalEntries == 0) {
             return 0.0;
         }
 
-        // Убеждаемся, что minTime раньше maxTime
         LocalDateTime startTime = minTime.isBefore(maxTime) ? minTime : maxTime;
         LocalDateTime endTime = minTime.isBefore(maxTime) ? maxTime : minTime;
 
         long hoursBetween = ChronoUnit.HOURS.between(startTime, endTime);
-
-        if (hoursBetween <= 0) {
-            return totalTraffic; // Если все записи в пределах одного часа
-        }
-
-        return (double) totalTraffic / hoursBetween;
+        return hoursBetween <= 0 ? totalTraffic : (double) totalTraffic / hoursBetween;
     }
 
-    // Среднее количество посещений сайта за час (только реальные пользователи)
+    /**
+     * Рассчитывает среднее количество посещений сайта за час
+     * @return среднее количество посещений в час
+     */
     public double getAverageVisitsPerHour() {
         if (minTime == null || maxTime == null || humanVisits == 0) {
             return 0.0;
@@ -150,7 +258,10 @@ public class Statistics {
         return hoursBetween <= 0 ? humanVisits : (double) humanVisits / hoursBetween;
     }
 
-    // Среднее количество ошибочных запросов в час
+    /**
+     * Рассчитывает среднее количество ошибочных запросов в час
+     * @return среднее количество ошибок в час
+     */
     public double getAverageErrorRequestsPerHour() {
         if (minTime == null || maxTime == null || errorRequests == 0) {
             return 0.0;
@@ -163,13 +274,72 @@ public class Statistics {
         return hoursBetween <= 0 ? errorRequests : (double) errorRequests / hoursBetween;
     }
 
-    // Средняя посещаемость одним пользователем
+    /**
+     * Рассчитывает среднее количество посещений на пользователя
+     * @return среднее количество посещений на пользователя
+     */
     public double getAverageVisitsPerUser() {
         return (humanVisits == 0 || uniqueHumanIPs.isEmpty()) ?
                 0.0 : (double) humanVisits / uniqueHumanIPs.size();
     }
 
-    // Сброс всей статистики к начальным значениям
+    /**
+     * Рассчитывает пиковую посещаемость сайта в секунду
+     * @return максимальное количество посещений в секунду
+     */
+    private int calculatePeakVisitsPerSecond() {
+        if (visitsPerSecond.isEmpty()) {
+            return 0;
+        }
+        return Collections.max(visitsPerSecond.values());
+    }
+
+    /**
+     * Рассчитывает максимальную посещаемость одним пользователем
+     * @return максимальное количество посещений одним пользователем
+     */
+    private int calculateMaxVisitsPerUser() {
+        if (visitsPerUser.isEmpty()) {
+            return 0;
+        }
+        return Collections.max(visitsPerUser.values());
+    }
+
+    /**
+     * Возвращает статистику операционных систем в процентах
+     * @return карта с долями операционных систем (0-1)
+     */
+    public Map<String, Double> getOsStatistics() {
+        Map<String, Double> osStatistics = new HashMap<>();
+        if (totalEntries == 0) return osStatistics;
+
+        for (Map.Entry<String, Integer> entry : osCounts.entrySet()) {
+            double percentage = (double) entry.getValue() / totalEntries;
+            osStatistics.put(entry.getKey(), percentage);
+        }
+        return osStatistics;
+    }
+
+    /**
+     * Возвращает статистику браузеров в процентах
+     * @return карта с долями браузеров (0-1)
+     */
+    public Map<String, Double> getBrowserStatistics() {
+        Map<String, Double> browserStatistics = new HashMap<>();
+        if (totalEntries == 0) return browserStatistics;
+
+        for (Map.Entry<String, Integer> entry : browserCounts.entrySet()) {
+            double percentage = (double) entry.getValue() / totalEntries;
+            browserStatistics.put(entry.getKey(), percentage);
+        }
+        return browserStatistics;
+    }
+
+    // ========== МЕТОД СБРОСА ==========
+
+    /**
+     * Сбрасывает всю статистику к начальным значениям
+     */
     public void reset() {
         totalTraffic = 0;
         totalEntries = 0;
@@ -184,65 +354,143 @@ public class Statistics {
         humanVisits = 0;
         errorRequests = 0;
         uniqueHumanIPs = new HashSet<>();
+        visitsPerSecond = new HashMap<>();
+        refererDomains = new HashSet<>();
+        visitsPerUser = new HashMap<>();
     }
 
-    // Методы доступа к статистике
-    public Set<String> getExistingPages() {
-        return new HashSet<>(existingPages);
-    }
-    public Set<String> getNotFoundPages() {
-        return new HashSet<>(notFoundPages); // Возвращаем копию для безопасности
-    }
-    public Map<String, Double> getOsStatistics() {
-        Map<String, Double> osStatistics = new HashMap<>();
-        if (totalEntries == 0) {
-            return osStatistics; // Пустая карта, если нет записей
-        }
-        // Рассчитываем долю для каждой операционной системы
-        for (Map.Entry<String, Integer> entry : osCounts.entrySet()) {
-            double percentage = (double) entry.getValue() / totalEntries;
-            osStatistics.put(entry.getKey(), percentage);
-        }
-        return osStatistics;
-    }
-    public Map<String, Double> getBrowserStatistics() {
-        Map<String, Double> browserStatistics = new HashMap<>();
+    // ========== ГЕТТЕРЫ ==========
 
-        if (totalEntries == 0) {
-            return browserStatistics; // Пустая карта, если нет записей
-        }
-        // Рассчитываем долю для каждого браузера
-        for (Map.Entry<String, Integer> entry : browserCounts.entrySet()) {
-            double percentage = (double) entry.getValue() / totalEntries;
-            browserStatistics.put(entry.getKey(), percentage);
-        }
-        return browserStatistics;
-    }
-
-    // Дополнительные методы для получения сырых данных
-    public Map<String, Integer> getOsCounts() {
-        return new HashMap<>(osCounts);
-    }
-    public Map<String, Integer> getBrowserCounts() {
-        return new HashMap<>(browserCounts);
-    }
-    public int getNotFoundPagesCount() {
-        return notFoundPages.size();
-    }
-
-    // Геттеры
+    /**
+     * @return общее количество обработанных запросов
+     */
     public int getTotalEntries() { return totalEntries; }
+
+    /**
+     * @return общий объем трафика в байтах
+     */
+    public long getTotalTraffic() { return totalTraffic; }
+
+    /**
+     * @return самое раннее время запроса
+     */
+    public LocalDateTime getMinTime() { return minTime; }
+
+    /**
+     * @return самое позднее время запроса
+     */
+    public LocalDateTime getMaxTime() { return maxTime; }
+
+    /**
+     * @return количество запросов от Googlebot
+     */
     public int getGooglebotCount() { return googlebotCount; }
+
+    /**
+     * @return количество запросов от YandexBot
+     */
     public int getYandexbotCount() { return yandexbotCount; }
+
+    /**
+     * @return процент запросов от Googlebot
+     */
     public double getGooglebotPercentage() {
         return totalEntries > 0 ? (double) googlebotCount / totalEntries * 100 : 0;
     }
+
+    /**
+     * @return процент запросов от YandexBot
+     */
     public double getYandexbotPercentage() {
         return totalEntries > 0 ? (double) yandexbotCount / totalEntries * 100 : 0;
     }
-    public long getTotalTraffic() { return totalTraffic; }
+
+    /**
+     * @return множество существующих страниц (код 200)
+     */
+    public Set<String> getExistingPages() { return new HashSet<>(existingPages); }
+
+    /**
+     * @return множество несуществующих страниц (код 404)
+     */
+    public Set<String> getNotFoundPages() { return new HashSet<>(notFoundPages); }
+
+    /**
+     * @return количество несуществующих страниц
+     */
+    public int getNotFoundPagesCount() { return notFoundPages.size(); }
+
+    /**
+     * @return количество существующих страниц
+     */
+    public int getExistingPagesCount() { return existingPages.size(); }
+
+    /**
+     * @return статистика операционных систем (количество)
+     */
+    public Map<String, Integer> getOsCounts() { return new HashMap<>(osCounts); }
+
+    /**
+     * @return статистика браузеров (количество)
+     */
+    public Map<String, Integer> getBrowserCounts() { return new HashMap<>(browserCounts); }
+
+    /**
+     * @return количество посещений реальными пользователями
+     */
     public int getHumanVisits() { return humanVisits; }
+
+    /**
+     * @return количество ошибочных запросов
+     */
     public int getErrorRequests() { return errorRequests; }
+
+    /**
+     * @return количество уникальных пользователей
+     */
     public int getUniqueHumanUsers() { return uniqueHumanIPs.size(); }
 
+    /**
+     * @return пиковая посещаемость в секунду
+     */
+    public int getPeakVisitsPerSecond() { return calculatePeakVisitsPerSecond(); }
+
+    /**
+     * @return максимальная посещаемость одним пользователем
+     */
+    public int getMaxVisitsPerUser() { return calculateMaxVisitsPerUser(); }
+
+    /**
+     * @return множество доменов-рефереров
+     */
+    public Set<String> getRefererDomains() { return new HashSet<>(refererDomains); }
+
+    /**
+     * @return количество доменов-рефереров
+     */
+    public int getRefererDomainsCount() { return refererDomains.size(); }
+
+    /**
+     * @return процент ошибочных запросов
+     */
+    public double getErrorRate() {
+        return totalEntries > 0 ? (double) errorRequests / totalEntries * 100 : 0;
+    }
+
+    /**
+     * @return процент посещений реальными пользователями
+     */
+    public double getHumanVisitPercentage() {
+        return totalEntries > 0 ? (double) humanVisits / totalEntries * 100 : 0;
+    }
+
+    /**
+     * @return длительность периода анализа в часах
+     */
+    public long getTimeRangeInHours() {
+        if (minTime == null || maxTime == null) return 0;
+        LocalDateTime startTime = minTime.isBefore(maxTime) ? minTime : maxTime;
+        LocalDateTime endTime = minTime.isBefore(maxTime) ? maxTime : minTime;
+        return ChronoUnit.HOURS.between(startTime, endTime);
+    }
 }
